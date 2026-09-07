@@ -6,6 +6,7 @@ The project uses the Cleveland Heart Disease dataset from UCI, available on Kagg
 
 ## 📂 Project Structure
 
+```text
 Heart Disease Risk Predictor/
 ├── app.py
 ├── preprocessing.py
