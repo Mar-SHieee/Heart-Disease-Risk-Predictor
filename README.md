@@ -1,6 +1,14 @@
 # ❤️ Heart Disease Risk Predictor
 
-This isn't a quick "load a dataset, call `.fit()`, done" notebook. I ran a full statistical investigation before touching a single model — t-tests, chi-square tests, PCA, LDA — to actually understand what separates a heart disease patient from a healthy one. Then I hand-built three custom leakage-free transformers from scratch to engineer features properly instead of leaning on shortcuts that quietly leak information across cross-validation folds. I trained, cross-validated, and tuned four different tree-based models, picked a winner based on real held-out performance, then went back in with SHAP to explain exactly *why* it predicts what it predicts. And I didn't stop at a notebook — I shipped it as a working Streamlit app.
+This isn't a quick "load a dataset, call `.fit()`, done" notebook.
+ 
+I ran a full statistical investigation before touching a single model,t-tests, chi-square tests, PCA, LDA to actually understand what separates a heart disease patient from a healthy one.
+
+Then I hand-built three custom leakage-free transformers from scratch to engineer features properly instead of leaning on shortcuts that quietly leak information across cross-validation folds.
+
+I trained, cross-validated, and tuned four different tree-based models, picked a winner based on real held-out performance, then went back in with SHAP to explain exactly *why* it predicts what it predicts.
+
+I didn't stop at a notebook, I shipped it as a working Streamlit app.
 
 I used the **Cleveland Heart Disease dataset** (UCI / [`cherngs/heart-disease-cleveland-uci`](https://www.kaggle.com/datasets/cherngs/heart-disease-cleveland-uci) on Kaggle) for this.
 
@@ -18,17 +26,20 @@ Heart Disease Risk Predictor/
 └── README.md
 ```
 
-> ⚠️ One thing I learned the hard way: `app.py` loads `heart_disease_pipeline.joblib` with `joblib.load`, and that pipeline contains three custom transformer classes I wrote myself. Pickle needs those exact classes importable at load time, which is why `preprocessing.py` has to sit right next to `app.py` — if it's missing or the class code changes, loading breaks.
+> ⚠️ One thing to pay attention to: `app.py` loads `heart_disease_pipeline.joblib` with `joblib.load`, and that pipeline contains three custom transformer classes I wrote myself.
+
+Pickle needs those exact classes importable at load time, which is why `preprocessing.py` has to sit right next to `app.py` — if it's missing or the class code changes, loading breaks.
 
 ---
 
 ## 🧠 How I actually got here
 
 ### 1. I started with EDA
-Before touching any model, I wanted to actually understand the data. I checked the class balance, then looked at each feature individually — things like `chol`, `thalach`, `cp`, `exang`, `sex`. Then I went further with bivariate analysis: I ran **t-tests** on the numeric features and **chi-square tests** on the categorical ones against the target, and ranked the features most correlated with heart disease. I also ran **PCA** and **LDA**, purely to visualize how separable the two classes were — not for actual dimensionality reduction.
+Before touching any model, I wanted to actually understand the data. I checked the class balance, then looked at each feature individually, things like `chol`, `thalach`, `cp`, `exang`, `sex`. Then I went further with bivariate analysis: I ran **t-tests** on the numeric features and **chi-square tests** on the categorical ones against the target, and ranked the features most correlated with heart disease. I also ran **PCA** and **LDA**, purely to visualize how separable the two classes were, not for actual dimensionality reduction.
 
 ### 2. I built my own leakage-free feature engineering
-This was the part I was most careful about. I built three custom `sklearn`-compatible transformers, and I made sure every single statistic they learn — correlations, scalers, quantile bounds — gets fit **only** on that fold's training data, so nothing leaks across cross-validation folds:
+This was the part I was most careful about. I built three custom `sklearn`-compatible transformers, and I made sure every single statistic they learn 
+correlations, scalers, quantile bounds gets fit **only** on that fold's training data, so nothing leaks across cross-validation folds:
 - **`RowWiseFeatureAdder`** — pure row-wise features (`bp_chol_ratio`, `age_hr_interaction`, `chest_pain_ecg`) that don't need fitting at all
 - **`RiskScoreAdder`** — I combined the strongest risk features into one composite `risk_score`, weighted by their correlation with the target and min-max scaled
 - **`OutlierCapper`** — instead of dropping outlier rows, I capped them using IQR bounds, computed independently per fold
@@ -89,7 +100,3 @@ It'll open automatically in your browser at `http://localhost:8501`. Fill in the
 | `slope` | Slope of the peak exercise ST segment (0–2) |
 | `ca` | Number of major vessels colored by fluoroscopy (0–3) |
 | `thal` | Thalassemia (0 = normal, 1 = fixed defect, 2 = reversible defect) |
-
-## ⚠️ Disclaimer
-
-I built this as a learning/portfolio project. It's **not a medical diagnosis tool** — please don't use it as one. Always consult a real healthcare professional.
