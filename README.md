@@ -1,102 +1,266 @@
-# ❤️ Heart Disease Risk Predictor
+❤️ Heart Disease Risk Predictor
 
-This isn't a quick "load a dataset, call `.fit()`, done" notebook.
- 
-I ran a full statistical investigation before touching a single model,t-tests, chi-square tests, PCA, LDA to actually understand what separates a heart disease patient from a healthy one.
+This project is a complete end-to-end machine learning workflow for predicting heart disease risk.
 
-Then I hand-built three custom leakage-free transformers from scratch to engineer features properly instead of leaning on shortcuts that quietly leak information across cross-validation folds.
+Rather than simply loading a dataset and training a model, I started with a thorough statistical investigation to understand the data and identify the factors that distinguish patients with heart disease from healthy individuals.
 
-I trained, cross-validated, and tuned four different tree-based models, picked a winner based on real held-out performance, then went back in with SHAP to explain exactly *why* it predicts what it predicts.
+I then built three custom, leakage-free feature engineering transformers from scratch, ensuring that every learned statistic was calculated only from the training data within each cross-validation fold.
 
-I didn't stop at a notebook, I shipped it as a working Streamlit app.
+After that, I trained, cross-validated, and tuned four tree-based models, compared their performance on unseen data, and selected the best-performing model for deployment.
 
-I used the **Cleveland Heart Disease dataset** (UCI / [`cherngs/heart-disease-cleveland-uci`](https://www.kaggle.com/datasets/cherngs/heart-disease-cleveland-uci) on Kaggle) for this.
+Finally, I used SHAP to interpret the model's predictions and understand which features were driving its decisions.
+
+The entire pipeline was then packaged into a working Streamlit application.
+
+The project uses the Cleveland Heart Disease dataset from UCI, available on Kaggle as ""cherngs/heart-disease-cleveland-uci"" (https://www.kaggle.com/datasets/cherngs/heart-disease-cleveland-uci).
 
 ---
 
-## 📂 What's in this folder
+📂 Project Structure
 
-```
 Heart Disease Risk Predictor/
-├── app.py                              # The Streamlit app I deployed
-├── preprocessing.py                    # My custom sklearn transformers, used inside the pipeline
-├── heart_disease_pipeline.joblib       # My final trained pipeline, serialized
-├── requirements.txt                    # Pinned dependencies
-├── Heart_Disease_Risk_Predictor.ipynb  # The full notebook — all my analysis and experiments
+├── app.py
+├── preprocessing.py
+├── heart_disease_pipeline.joblib
+├── requirements.txt
+├── Heart Disease Risk Predictor.ipynb
 └── README.md
-```
 
-> ⚠️ One thing to pay attention to: `app.py` loads `heart_disease_pipeline.joblib` with `joblib.load`, and that pipeline contains three custom transformer classes I wrote myself.
+File Overview
 
-Pickle needs those exact classes importable at load time, which is why `preprocessing.py` has to sit right next to `app.py` — if it's missing or the class code changes, loading breaks.
+File| Purpose
+"app.py"| Streamlit application used for deployment
+"preprocessing.py"| Custom scikit-learn transformers used inside the pipeline
+"heart_disease_pipeline.joblib"| Final trained and serialized machine learning pipeline
+"requirements.txt"| Project dependencies
+"Heart Disease Risk Predictor.ipynb"| Complete analysis, experimentation, and modeling workflow
+"README.md"| Project documentation
 
----
+«⚠️ Important: "app.py" loads "heart_disease_pipeline.joblib" using "joblib.load()". The saved pipeline contains three custom transformer classes defined in "preprocessing.py".
 
-## 🧠 How I actually got here
-
-### 1. I started with EDA
-Before touching any model, I wanted to actually understand the data. I checked the class balance, then looked at each feature individually, things like `chol`, `thalach`, `cp`, `exang`, `sex`. Then I went further with bivariate analysis: I ran **t-tests** on the numeric features and **chi-square tests** on the categorical ones against the target, and ranked the features most correlated with heart disease. I also ran **PCA** and **LDA**, purely to visualize how separable the two classes were, not for actual dimensionality reduction.
-
-### 2. I built my own leakage-free feature engineering
-This was the part I was most careful about. I built three custom `sklearn`-compatible transformers, and I made sure every single statistic they learn 
-correlations, scalers, quantile bounds gets fit **only** on that fold's training data, so nothing leaks across cross-validation folds:
-- **`RowWiseFeatureAdder`** — pure row-wise features (`bp_chol_ratio`, `age_hr_interaction`, `chest_pain_ecg`) that don't need fitting at all
-- **`RiskScoreAdder`** — I combined the strongest risk features into one composite `risk_score`, weighted by their correlation with the target and min-max scaled
-- **`OutlierCapper`** — instead of dropping outlier rows, I capped them using IQR bounds, computed independently per fold
-
-### 3. I trained and tuned four different models
-I trained a Decision Tree, Random Forest, Gradient Boosting, and XGBoost, cross-validated each with 5-fold stratified CV, compared them, then tuned all four with `RandomizedSearchCV`.
-
-**Random Forest ended up winning** after tuning, with an AUC-ROC of about 0.93 on the held-out test set — that's the one I deployed.
-
-### 4. I dug into why the models made the decisions they did
-I didn't want a black box, so I went further:
-- Compared feature importances across all four models — `risk_score` came out on top for every single one
-- Looked at the tuned Decision Tree's actual splits to understand its logic
-- Plotted XGBoost's learning curves and analyzed bias-variance tradeoffs
-- Ran **SHAP** (summary plots and individual force plots) to explain specific predictions
-- Tested cost-sensitive learning (`scale_pos_weight`) — it barely moved the needle, since the class imbalance turned out to be mild
-- Tried stacking the models together — it didn't beat XGBoost or Random Forest alone, so I dropped it
-
-### 5. I packaged it for deployment
-Once I picked the tuned Random Forest, I saved the whole pipeline — preprocessing steps and model together — with `joblib.dump()` as `heart_disease_pipeline.joblib`. That's the exact file `app.py` loads, so there's no retraining needed to make predictions.
+Because serialized scikit-learn pipelines need access to the original class definitions when they are loaded, "preprocessing.py" must remain available alongside "app.py". Changing or removing those classes can prevent the saved pipeline from loading correctly.»
 
 ---
 
-## 🚀 How to run the app
+🧠 Project Workflow
 
-**1. Install dependencies** (I'd recommend a virtual environment):
-```bash
+1. Exploratory Data Analysis and Statistical Analysis
+
+Before training any model, I focused on understanding the dataset and the relationships between its features and the target.
+
+I first examined the class distribution and performed univariate analysis on individual features such as:
+
+- "chol"
+- "thalach"
+- "cp"
+- "exang"
+- "sex"
+
+I then performed bivariate statistical analysis:
+
+- T-tests for numeric features
+- Chi-square tests for categorical features
+- Correlation analysis to identify features most strongly associated with heart disease
+
+I also used PCA and LDA to visualize the separability between the two classes.
+
+These techniques were used for exploration and visualization, not as the final dimensionality reduction or modeling approach.
+
+---
+
+2. Custom Leakage-Free Feature Engineering
+
+Feature engineering was designed with a strong focus on preventing data leakage.
+
+I built three custom scikit-learn-compatible transformers:
+
+"RowWiseFeatureAdder"
+
+Creates features directly from each individual row without learning any statistics from the dataset.
+
+Examples include:
+
+- "bp_chol_ratio"
+- "age_hr_interaction"
+- "chest_pain_ecg"
+
+Because these transformations are purely row-wise, they do not require fitting.
+
+"RiskScoreAdder"
+
+Combines the strongest risk-related features into a single composite "risk_score".
+
+The score uses feature weights based on their correlation with the target and applies min-max scaling.
+
+Most importantly, the correlations and scaling parameters are learned only from the training portion of each cross-validation fold.
+
+"OutlierCapper"
+
+Instead of removing observations containing outliers, this transformer caps extreme values using IQR-based bounds.
+
+The lower and upper bounds are calculated independently for each training fold, ensuring that information from the validation fold never influences preprocessing.
+
+Why This Matters
+
+All learned statistics — including:
+
+- Correlations
+- Scaling parameters
+- Quantile and IQR bounds
+
+are fitted only on the corresponding training data.
+
+This prevents information from the validation or test sets from influencing the feature engineering process and keeps the evaluation reliable.
+
+---
+
+🌳 Model Training and Selection
+
+I trained and compared four tree-based classification models:
+
+1. Decision Tree
+2. Random Forest
+3. Gradient Boosting
+4. XGBoost
+
+Each model was evaluated using 5-fold Stratified Cross-Validation to preserve the class distribution across folds.
+
+I then performed hyperparameter optimization using RandomizedSearchCV.
+
+After comparing the tuned models, Random Forest achieved the best overall held-out performance.
+
+The final model achieved an AUC-ROC of approximately 0.93 on the held-out test set and was selected for deployment.
+
+---
+
+🔍 Model Interpretability
+
+Model performance alone is not enough for a project like this. I also wanted to understand why the models were making their predictions.
+
+I performed several interpretability analyses:
+
+Feature Importance Comparison
+
+I compared feature importance across all four models.
+
+Interestingly, "risk_score" ranked as the most important feature across every model.
+
+Decision Tree Analysis
+
+I examined the tuned Decision Tree's actual splits to understand the decision-making structure and identify which features were used at different stages of classification.
+
+XGBoost Learning Curves
+
+I analyzed XGBoost's learning curves to investigate its training behavior and evaluate the bias-variance tradeoff.
+
+SHAP Analysis
+
+I used SHAP (SHapley Additive exPlanations) to investigate both global and individual model behavior.
+
+This included:
+
+- SHAP summary plots to understand global feature impact
+- Individual force plots to explain specific predictions
+
+This provided a more detailed view of how individual features contributed to the model's output.
+
+Additional Experiments
+
+I also tested two alternative approaches:
+
+- Cost-sensitive learning using "scale_pos_weight"
+- Stacking the four models together
+
+Cost-sensitive learning produced only a minor improvement because the dataset's class imbalance was relatively mild.
+
+Stacking also failed to outperform the strongest individual models, so I ultimately kept the standalone Random Forest model.
+
+---
+
+🚀 Deployment
+
+After selecting the final model, I saved the complete preprocessing and prediction workflow as a single serialized pipeline:
+
+joblib.dump(pipeline, "heart_disease_pipeline.joblib")
+
+The saved pipeline contains the preprocessing steps, custom feature engineering, and trained Random Forest model.
+
+The Streamlit application loads this pipeline directly, meaning no retraining is required when the application starts.
+
+The deployed application allows users to enter patient information and receive:
+
+- A predicted heart disease class
+- The corresponding prediction probability
+- A clear risk verdict
+
+---
+
+💻 How to Run the Application
+
+1. Create a Virtual Environment
+
 python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # macOS/Linux
+
+Activate it on Windows:
+
+venv\Scripts\activate
+
+Or on macOS/Linux:
+
+source venv/bin/activate
+
+2. Install Dependencies
 
 pip install -r requirements.txt
-```
 
-**2. Run it:**
-```bash
+3. Start the Streamlit App
+
 streamlit run app.py
-```
 
-It'll open automatically in your browser at `http://localhost:8501`. Fill in the patient's values in the form and hit **Predict** to get a risk verdict and probability.
+The application will be available at:
+
+http://localhost:8501
+
+Enter the patient's values in the form and click Predict to generate the model's prediction and probability.
 
 ---
 
-## 📋 The input features
+📋 Input Features
 
-| Feature | Description |
-|---|---|
-| `age` | Age in years |
-| `sex` | 1 = male, 0 = female |
-| `cp` | Chest pain type (0–3) |
-| `trestbps` | Resting blood pressure (mm Hg) |
-| `chol` | Serum cholesterol (mg/dl) |
-| `fbs` | Fasting blood sugar > 120 mg/dl (1 = true, 0 = false) |
-| `restecg` | Resting ECG results (0–2) |
-| `thalach` | Maximum heart rate achieved |
-| `exang` | Exercise-induced angina (1 = yes, 0 = no) |
-| `oldpeak` | ST depression induced by exercise relative to rest |
-| `slope` | Slope of the peak exercise ST segment (0–2) |
-| `ca` | Number of major vessels colored by fluoroscopy (0–3) |
-| `thal` | Thalassemia (0 = normal, 1 = fixed defect, 2 = reversible defect) |
+Feature| Description
+"age"| Age in years
+"sex"| 1 = male, 0 = female
+"cp"| Chest pain type (0–3)
+"trestbps"| Resting blood pressure (mm Hg)
+"chol"| Serum cholesterol (mg/dl)
+"fbs"| Fasting blood sugar > 120 mg/dl (1 = true, 0 = false)
+"restecg"| Resting ECG results (0–2)
+"thalach"| Maximum heart rate achieved
+"exang"| Exercise-induced angina (1 = yes, 0 = no)
+"oldpeak"| ST depression induced by exercise relative to rest
+"slope"| Slope of the peak exercise ST segment (0–2)
+"ca"| Number of major vessels colored by fluoroscopy (0–3)
+"thal"| Thalassemia (0 = normal, 1 = fixed defect, 2 = reversible defect)
+
+---
+
+🧩 Key Highlights
+
+- Complete EDA and statistical analysis before modeling
+- T-tests and chi-square tests for statistical feature analysis
+- PCA and LDA for class separability visualization
+- Three custom scikit-learn transformers
+- Explicit data leakage prevention throughout preprocessing and cross-validation
+- Feature engineering with a custom composite "risk_score"
+- IQR-based outlier capping instead of deleting observations
+- Comparison of four tree-based classification models
+- 5-fold Stratified Cross-Validation
+- Hyperparameter tuning with "RandomizedSearchCV"
+- Final Random Forest model with approximately 0.93 AUC-ROC on the held-out test set
+- Cross-model feature importance analysis
+- SHAP-based model interpretability
+- Bias-variance analysis using learning curves
+- Cost-sensitive learning experiment
+- Stacking experiment
+- End-to-end serialized ML pipeline
+- Interactive Streamlit deployment
